@@ -1,33 +1,26 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "== Update system =="
+echo "=== Step 1: Update system ==="
 sudo apt update
 sudo apt upgrade -y
+sudo apt install -y curl git sudo
 
-echo "== Install build deps =="
-sudo apt install -y --no-install-recommends \
-  build-essential git wget curl ca-certificates \
-  meson ninja-build cmake pkg-config pkgconf \
-  python3 python3-pip python3-setuptools \
-  wayland-protocols libwayland-dev \
-  libxkbcommon-dev libinput-dev libudev-dev \
-  libpixman-1-dev libseat-dev libpam0g-dev libevdev-dev \
-  libdrm-dev libgbm-dev libegl1-mesa-dev libgles2-mesa-dev \
-  libvulkan-dev mesa-vulkan-drivers \
-  libpango1.0-dev libcairo2-dev libjson-c-dev \
-  libxcb1-dev libxcb-ewmh-dev libxcb-composite0-dev \
-  libxcb-present-dev libxcb-render0-dev libxcb-xfixes0-dev \
-  libxcb-drm0-dev libxcb-icccm4-dev libxcb-util0-dev \
-  hwdata gettext jq
+echo "=== Step 2: Install Nix ==="
+sh <(curl -L https://nixos.org/nix/install) --daemon
 
-echo "== Create build directory =="
+echo "=== Step 3: Source Nix profile ==="
+. /etc/profile.d/nix.sh
+
+echo "=== Step 4: Add user to nixbld group ==="
+sudo usermod -aG nixbld $USER
+
+echo "=== Step 5: Clone SwayFX repo with submodules ==="
 mkdir -p ~/build
 cd ~/build
 
-echo "== Clone SwayFX repo with submodules =="
 if [ -d swayfx ]; then
-  echo "swayfx dir exists; updating"
+  echo "swayfx directory exists. Pulling latest and updating submodules..."
   cd swayfx
   git pull --rebase
   git submodule update --init --recursive
@@ -36,19 +29,13 @@ else
   cd swayfx
 fi
 
-echo "== Configure meson build =="
-meson setup build --buildtype=release -Dprefix=/usr/local || meson setup --reconfigure build
+echo "=== Step 6: Enter Nix development shell ==="
+echo "This may take a few minutes as Nix builds the environment..."
+nix develop
 
-echo "== Build =="
-ninja -C build
+echo "=== Step 7: Build SwayFX ==="
+nix build
 
-echo "== Install =="
-sudo ninja -C build install
-
-echo "== Make SUID on sway if needed =="
-if [ -f /usr/local/bin/sway ]; then
-  sudo chmod a+s /usr/local/bin/sway || true
-fi
-
-echo "== Done =="
-echo "Run 'sway' to start. Copy config from /etc/sway/ or create ~/.config/sway/config"
+echo "=== Step 8: Run SwayFX ==="
+echo "You can now run:"
+echo "  ./result/bin/sway"
